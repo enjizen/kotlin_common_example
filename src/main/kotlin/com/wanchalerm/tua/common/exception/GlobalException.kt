@@ -48,8 +48,8 @@ class GlobalException {
     @ResponseBody
     fun handleJsonParseException(ex: Exception): ResponseEntity<ResponseModel> {
         logger.error("handleJsonParseException", ex)
-       // val description = getDescription(ex)
-        val responseStatus = ResponseStatus("400", BAD_REQUEST)
+        val description = getDescription(ex)
+        val responseStatus = ResponseStatus("400", description)
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .header(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON)
             .body(ResponseModel(responseStatus = responseStatus))
