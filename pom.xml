@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.wanchalerm.tua</groupId>
 	<artifactId>kotlin_common_example</artifactId>
-	<version>0.0.5</version>
+	<version>0.1.0</version>
 	<packaging>jar</packaging>
 	<name>kotlin_common_example</name>
 	<description>kotlin_common_example project for Spring Boot</description>
@@ -47,12 +47,16 @@
 	</dependencies>
 	<repositories>
 		<repository>
-			<id>nexus-release</id>
-			<url>http://localhost:8081/repository/maven-releases/</url>
+			<id>nexus-central</id>
+			<url>http://localhost:8081/repository/maven-central/</url>
 		</repository>
 	</repositories>
 
 	<distributionManagement>
+		<snapshotRepository>
+			<id>nexus-snapshots</id>
+			<url>http://localhost:8081/repository/maven-snapshots/</url>
+		</snapshotRepository>
 		<repository>
 			<id>nexus-release</id>
 			<name>nexus-release</name>
