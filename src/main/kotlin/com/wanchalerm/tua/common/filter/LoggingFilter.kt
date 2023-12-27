@@ -122,7 +122,7 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
                 val key: String = entry.key
                 if (key == keyToMask) {
                     // Mask the value if the key matches
-                    (jsonNode as ObjectNode).put(key,  replaceFirst(entry.value.textValue()))
+                    (jsonNode as ObjectNode).put(key,  replaceFirst(entry?.value?.textValue() ?: ""))
                 } else {
                     // Recursively traverse the value
                     traverseAndMask(entry.value, keyToMask)

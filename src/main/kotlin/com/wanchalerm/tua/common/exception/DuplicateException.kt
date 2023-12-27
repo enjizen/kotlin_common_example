@@ -1,10 +1,10 @@
 package com.wanchalerm.tua.common.exception
 
-import com.wanchalerm.tua.common.constant.ResponseEnum.BAD_REQUEST
+import com.wanchalerm.tua.common.constant.ResponseEnum.CONFLICT
 
 
 class DuplicateException(
-    val code: String = BAD_REQUEST.code,
-    override val message: String = BAD_REQUEST.message,
+    val code: String = CONFLICT.code,
+    override val message: String = CONFLICT.message,
     throwable: Throwable? = null
 ) : RuntimeException(message, throwable)
