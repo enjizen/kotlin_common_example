@@ -9,7 +9,6 @@ import com.wanchalerm.tua.common.extension.createCorrelationId
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import java.io.IOException
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -17,6 +16,7 @@ import org.springframework.stereotype.Component
 import org.springframework.util.StopWatch
 import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.web.util.ContentCachingResponseWrapper
+import java.io.IOException
 
 
 @Component
@@ -29,10 +29,7 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
         filterChain: FilterChain
     ) {
 
-       var correlationId = request.getHeader(ThreadConstant.CORRELATION_ID)
-       if (correlationId?.isBlank() == true) {
-           correlationId = "customer".createCorrelationId()
-       }
+       val correlationId = retrieveCorrelationId(request)
 
        MDC.put(ThreadConstant.CORRELATION_ID, correlationId)
        MDC.put(ThreadConstant.CLIENT_IP, request.remoteAddr)
@@ -140,6 +137,11 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
         } else {
             "***${input.substring(input.length)}"
         }
+    }
+
+    private fun retrieveCorrelationId(request: HttpServletRequest): String {
+        val correlationId = request.getHeader(ThreadConstant.CORRELATION_ID)
+        return if (correlationId.isNullOrBlank()) "customer".createCorrelationId() else correlationId
     }
 
 }
