@@ -35,7 +35,7 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
 
        val correlationId = retrieveCorrelationId(request)
 
-       MDC.put(ThreadConstant.CORRELATION_ID, correlationId)
+       MDC.put(ThreadConstant.X_CORRELATION_ID, correlationId)
        MDC.put(ThreadConstant.CLIENT_IP, request.remoteAddr)
 
         val requestWrapper = RepeatableContentCachingRequestWrapper(request)
@@ -52,15 +52,12 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
     private fun logRequest(requestWrapper: RepeatableContentCachingRequestWrapper) {
         var body = maskJsonValue(requestWrapper.readInputAndDuplicate())
         body = hiddenJsonValue(body)
-
-        val headers = getAllHeaders(requestWrapper)
         val params = getAllParam(requestWrapper)
 
         val logRequest = """[REQUEST]
                 method=[${requestWrapper.method}]
                 path=[${requestWrapper.requestURI}]
                 ${if (params.isNotEmpty()) "param=[${objectMapper.writeValueAsString(params)}]" else ""}
-                headers=[${objectMapper.writeValueAsString(headers)}]
                 body=[$body]
             """.trimIndent()
         log.info(logRequest.split("\\s+".toRegex()).joinToString(" "))
@@ -166,7 +163,7 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
     }
 
     private fun retrieveCorrelationId(request: HttpServletRequest): String {
-        val correlationId = request.getHeader(ThreadConstant.CORRELATION_ID)
+        val correlationId = request.getHeader(ThreadConstant.X_CORRELATION_ID)
         return if (correlationId.isNullOrBlank()) "customer".createCorrelationId() else correlationId
     }
 
