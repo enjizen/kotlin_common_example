@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component
 @Component
 @ConfigurationProperties("masking")
 class MaskingConfig (
-    var enabled: Boolean = false,
     var maskingKeys: MutableList<String> = mutableListOf(),
-    var maskingSize: Int? = 4
+    var maskingSize: Int? = 4,
+    var hiddenKeys: MutableList<String> = mutableListOf()
 )

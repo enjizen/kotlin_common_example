@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.wanchalerm.tua</groupId>
 	<artifactId>kotlin_common_example</artifactId>
-	<version>0.1.7</version>
+	<version>0.1.15</version>
 	<packaging>jar</packaging>
 	<name>kotlin_common_example</name>
 	<description>kotlin_common_example project for Spring Boot</description>

@@ -8,12 +8,10 @@ import com.wanchalerm.tua.common.constant.ExceptionConstant.DEFAULT_MESSAGE
 import com.wanchalerm.tua.common.constant.ExceptionConstant.FIELD_IS_INVALID
 import com.wanchalerm.tua.common.constant.ExceptionConstant.FIELD_IS_MISSING
 import com.wanchalerm.tua.common.constant.ResponseEnum
-import com.wanchalerm.tua.common.constant.ResponseStatusConstant.BAD_REQUEST
 import com.wanchalerm.tua.common.extension.camelToSnake
 import com.wanchalerm.tua.common.model.response.ResponseModel
 import com.wanchalerm.tua.common.model.response.ResponseStatus
 import jakarta.validation.ConstraintViolationException
-import java.util.TreeMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -21,20 +19,20 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.HttpMediaTypeException
-import org.springframework.web.bind.MethodArgumentNotValidException
-import org.springframework.web.bind.MissingPathVariableException
-import org.springframework.web.bind.MissingRequestHeaderException
-import org.springframework.web.bind.MissingRequestValueException
-import org.springframework.web.bind.MissingServletRequestParameterException
-import org.springframework.web.bind.ServletRequestBindingException
+import org.springframework.web.bind.*
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.client.HttpServerErrorException
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import java.util.*
+
 
 @RestControllerAdvice
 class GlobalException {
     val logger: Logger = LoggerFactory.getLogger(this::class.java)
+
 
     @ExceptionHandler(
         JsonParseException::class,
@@ -181,4 +179,32 @@ class GlobalException {
             .header(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON)
             .body(responseModel)
     }
+
+    @ExceptionHandler(Exception::class)
+    @ResponseBody
+    fun handleGenericException(ex: Exception): ResponseEntity<ResponseModel> {
+        logger.error(ex.message, ex)
+
+        val responseStatus = when {
+            isGatewayTimeoutException(ex) -> ResponseStatus("504", "System timeout, please try again later")
+            else -> ResponseStatus("500", "Internal server error")
+        }
+
+        val responseModel = ResponseModel(responseStatus = responseStatus)
+
+        val httpStatus = if (responseStatus.code == "504") HttpStatus.GATEWAY_TIMEOUT else HttpStatus.INTERNAL_SERVER_ERROR
+
+        return ResponseEntity
+            .status(httpStatus)
+            .body(responseModel)
+    }
+
+    private fun isGatewayTimeoutException(ex: Exception): Boolean {
+        return when {
+            ex is HttpServerErrorException && ex.statusCode == HttpStatus.GATEWAY_TIMEOUT -> true
+            ex is ResourceAccessException && (ex.cause is ResourceAccessException) -> true
+            else -> false
+        }
+    }
+
 }

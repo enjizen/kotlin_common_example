@@ -23,6 +23,10 @@ import java.io.IOException
 class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFilter() {
     private val log: Logger = LoggerFactory.getLogger(this::class.java)
     private val objectMapper = ObjectMapper()
+
+    init {
+        maskingConfig.hiddenKeys.add("password")
+    }
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
@@ -46,11 +50,8 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
 
     @Throws(IOException::class)
     private fun logRequest(requestWrapper: RepeatableContentCachingRequestWrapper) {
-        val body = if (maskingConfig.enabled) {
-            maskJsonValue(requestWrapper.readInputAndDuplicate())
-        } else {
-            requestWrapper.readInputAndDuplicate()
-        }
+        var body = maskJsonValue(requestWrapper.readInputAndDuplicate())
+        body = hiddenJsonValue(body)
 
         val headers = getAllHeaders(requestWrapper)
         val params = getAllParam(requestWrapper)
@@ -67,11 +68,8 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
 
     @Throws(IOException::class)
     private fun logResponse(method: String, uri: String, responseWrapper: ContentCachingResponseWrapper, stopWatch: StopWatch) {
-        val body = if (maskingConfig.enabled) {
-            maskJsonValue(String(responseWrapper.contentAsByteArray))
-        } else {
-            String(responseWrapper.contentAsByteArray)
-        }
+        var body = maskJsonValue(String(responseWrapper.contentAsByteArray))
+        body = hiddenJsonValue(body)
         val logResponse = """[RESPONSE]
                 timeUsage=[${stopWatch.totalTimeMillis}] ms
                 method=[$method]
@@ -120,6 +118,34 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
                 if (key == keyToMask) {
                     // Mask the value if the key matches
                     (jsonNode as ObjectNode).put(key,  replaceFirst(entry?.value?.textValue() ?: ""))
+                } else {
+                    // Recursively traverse the value
+                    traverseAndMask(entry.value, keyToMask)
+                }
+            }
+        } else if (jsonNode.isArray) {
+            jsonNode.elements().forEachRemaining { element -> traverseAndMask(element, keyToMask) }
+        }
+    }
+
+    fun hiddenJsonValue(jsonString: String): String {
+        return try {
+            val jsonNode: JsonNode = objectMapper.readTree(jsonString)
+            maskingConfig.hiddenKeys.forEach { key -> traverseAndHidden(jsonNode, key) }
+            objectMapper.writeValueAsString(jsonNode)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            jsonString // Return the original JSON in case of an error
+        }
+    }
+
+    private fun traverseAndHidden(jsonNode: JsonNode, keyToMask: String) {
+        if (jsonNode.isObject) {
+            jsonNode.fields().forEachRemaining { entry ->
+                val key: String = entry.key
+                if (key == keyToMask) {
+                    // Mask the value if the key matches
+                    (jsonNode as ObjectNode).put(key,  "*****")
                 } else {
                     // Recursively traverse the value
                     traverseAndMask(entry.value, keyToMask)
