@@ -9,7 +9,6 @@ import com.wanchalerm.tua.common.extension.createCorrelationId
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import java.io.IOException
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -17,24 +16,26 @@ import org.springframework.stereotype.Component
 import org.springframework.util.StopWatch
 import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.web.util.ContentCachingResponseWrapper
+import java.io.IOException
 
 
 @Component
 class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFilter() {
     private val log: Logger = LoggerFactory.getLogger(this::class.java)
     private val objectMapper = ObjectMapper()
+
+    init {
+        maskingConfig.hiddenKeys.add("password")
+    }
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
 
-       var correlationId = request.getHeader(ThreadConstant.CORRELATION_ID)
-       if (correlationId?.isBlank() == true) {
-           correlationId = "customer".createCorrelationId()
-       }
+       val correlationId = retrieveCorrelationId(request)
 
-       MDC.put(ThreadConstant.CORRELATION_ID, correlationId)
+       MDC.put(ThreadConstant.X_CORRELATION_ID, correlationId)
        MDC.put(ThreadConstant.CLIENT_IP, request.remoteAddr)
 
         val requestWrapper = RepeatableContentCachingRequestWrapper(request)
@@ -49,20 +50,14 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
 
     @Throws(IOException::class)
     private fun logRequest(requestWrapper: RepeatableContentCachingRequestWrapper) {
-        val body = if (maskingConfig.enabled) {
-            maskJsonValue(requestWrapper.readInputAndDuplicate())
-        } else {
-            requestWrapper.readInputAndDuplicate()
-        }
-
-        val headers = getAllHeaders(requestWrapper)
+        var body = maskJsonValue(requestWrapper.readInputAndDuplicate())
+        body = hiddenJsonValue(body)
         val params = getAllParam(requestWrapper)
 
         val logRequest = """[REQUEST]
                 method=[${requestWrapper.method}]
                 path=[${requestWrapper.requestURI}]
                 ${if (params.isNotEmpty()) "param=[${objectMapper.writeValueAsString(params)}]" else ""}
-                headers=[${objectMapper.writeValueAsString(headers)}]
                 body=[$body]
             """.trimIndent()
         log.info(logRequest.split("\\s+".toRegex()).joinToString(" "))
@@ -70,11 +65,8 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
 
     @Throws(IOException::class)
     private fun logResponse(method: String, uri: String, responseWrapper: ContentCachingResponseWrapper, stopWatch: StopWatch) {
-        val body = if (maskingConfig.enabled) {
-            maskJsonValue(String(responseWrapper.contentAsByteArray))
-        } else {
-            String(responseWrapper.contentAsByteArray)
-        }
+        var body = maskJsonValue(String(responseWrapper.contentAsByteArray))
+        body = hiddenJsonValue(body)
         val logResponse = """[RESPONSE]
                 timeUsage=[${stopWatch.totalTimeMillis}] ms
                 method=[$method]
@@ -122,7 +114,35 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
                 val key: String = entry.key
                 if (key == keyToMask) {
                     // Mask the value if the key matches
-                    (jsonNode as ObjectNode).put(key,  replaceFirst(entry.value.textValue()))
+                    (jsonNode as ObjectNode).put(key,  replaceFirst(entry?.value?.textValue() ?: ""))
+                } else {
+                    // Recursively traverse the value
+                    traverseAndMask(entry.value, keyToMask)
+                }
+            }
+        } else if (jsonNode.isArray) {
+            jsonNode.elements().forEachRemaining { element -> traverseAndMask(element, keyToMask) }
+        }
+    }
+
+    fun hiddenJsonValue(jsonString: String): String {
+        return try {
+            val jsonNode: JsonNode = objectMapper.readTree(jsonString)
+            maskingConfig.hiddenKeys.forEach { key -> traverseAndHidden(jsonNode, key) }
+            objectMapper.writeValueAsString(jsonNode)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            jsonString // Return the original JSON in case of an error
+        }
+    }
+
+    private fun traverseAndHidden(jsonNode: JsonNode, keyToMask: String) {
+        if (jsonNode.isObject) {
+            jsonNode.fields().forEachRemaining { entry ->
+                val key: String = entry.key
+                if (key == keyToMask) {
+                    // Mask the value if the key matches
+                    (jsonNode as ObjectNode).put(key,  "*****")
                 } else {
                     // Recursively traverse the value
                     traverseAndMask(entry.value, keyToMask)
@@ -140,6 +160,11 @@ class LoggingFilter(private val maskingConfig: MaskingConfig) : OncePerRequestFi
         } else {
             "***${input.substring(input.length)}"
         }
+    }
+
+    private fun retrieveCorrelationId(request: HttpServletRequest): String {
+        val correlationId = request.getHeader(ThreadConstant.X_CORRELATION_ID)
+        return if (correlationId.isNullOrBlank()) "customer".createCorrelationId() else correlationId
     }
 
 }

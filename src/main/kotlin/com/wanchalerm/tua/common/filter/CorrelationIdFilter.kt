@@ -16,13 +16,14 @@ class CorrelationIdFilter : OncePerRequestFilter() {
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        var correlationId = request.getHeader(ThreadConstant.CORRELATION_ID)
+        var correlationId = request.getHeader(ThreadConstant.X_CORRELATION_ID)
         if (correlationId?.isBlank() == true) {
             correlationId = "customer".createCorrelationId()
         }
 
-        MDC.put(ThreadConstant.CORRELATION_ID, correlationId)
+        MDC.put(ThreadConstant.X_CORRELATION_ID, correlationId)
         MDC.put(ThreadConstant.CLIENT_IP, request.remoteAddr)
+        MDC.put(ThreadConstant.X_DEVICE_ID, request.getHeader(ThreadConstant.X_DEVICE_ID))
 
         filterChain.doFilter(request, response)
     }
